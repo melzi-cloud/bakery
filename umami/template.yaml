@@ -1,6 +1,6 @@
 apiVersion: bakery.slicedbread.dev/v1
 name: umami
-version: 1.0.0
+version: 1.0.1
 description: Privacy-friendly web analytics with a Postgres database.
 upstream: {project: Umami, url: https://umami.is, licence: MIT}
 access:
@@ -81,3 +81,5 @@ notes: |
   public so websites can report visits. Use create_website to get a snippet; do not create sites through
   the UI. If the tracked app is behind the wall, only signed-in team members' visits are counted. Verify
   tracking with test_event (it adds one page view at /sb-test-event) and read counts with stats.
+  test_event is sent from the server: it proves Umami counts events, not that a visitor's browser
+  loads the script (check the page contains the snippet and /script.js is reachable for that).
