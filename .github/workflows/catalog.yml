@@ -1,0 +1,49 @@
+name: catalog
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: catalog-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: bakery
+      # SlicedBread's validator and catalog builder (hack/bakery). The repository is
+      # private until launch, so CI reads it with a read-only deploy key.
+      - uses: actions/checkout@v7
+        with:
+          repository: melzi-cloud/sliced-bread
+          ssh-key: ${{ secrets.SLICEDBREAD_DEPLOY_KEY }}
+          path: sliced-bread
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: sliced-bread/go.mod
+      - name: validate and build the catalog
+        working-directory: sliced-bread
+        run: go run ./hack/bakery build ../bakery -o ../catalog.json -source "melzi-cloud/bakery@${GITHUB_SHA::7}"
+      - name: sign and publish
+        if: github.event_name != 'pull_request'
+        working-directory: sliced-bread
+        env:
+          BAKERY_SIGNING_KEY: ${{ secrets.BAKERY_SIGNING_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          go run ./hack/bakery sign ../catalog.json
+          go run ./hack/bakery verify ../catalog.json
+          serial=$(python3 -c 'import json; print(json.load(open("../catalog.json"))["serial"])')
+          gh release create "catalog-$serial" ../catalog.json ../catalog.json.minisig \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest \
+            --title "Catalog $serial" \
+            --notes "Signed template catalog built from $GITHUB_SHA. Installs pick it up with: sb catalog --refresh"
